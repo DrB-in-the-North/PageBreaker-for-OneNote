@@ -8,7 +8,7 @@
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="My OneNote Add-in"/>
   <Description DefaultValue="Test add-in"/>
-  <-IconUrl DefaultValue="https://drb-in-the-north.github.io/PageBreaker-for-OneNote/icon-32.png"/>
+  <IconUrl DefaultValue="https://drb-in-the-north.github.io/PageBreaker-for-OneNote/icon-32.png"/>
   
            
   <HighResolutionIconUrl DefaultValue="https://drb-in-the-north.github.io/PageBreaker-for-OneNote/icon-80.png"/>
