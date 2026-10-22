@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Page Break Guides</title>
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+  <style>
+    body { font-family: Segoe UI, Arial, sans-serif; font-size: 13px; padding: 12px; }
+    label { display: block; margin-top: 8px; }
+    input, select { width: 100%; box-sizing: border-box; padding: 4px; }
+    .toggle { font-size: 15px; font-weight: 600; margin-bottom: 8px; }
+    .toggle input { width: auto; margin-right: 6px; }
+    .row { display: flex; gap: 8px; }
+    .row > div { flex: 1; }
+    #status { margin-top: 12px; color: #555; }
+    .warn { margin-top: 12px; padding: 8px; background: #fff4ce; border: 1px solid #e5c86a; }
+  </style>
+</head>
+<body>
+  <label class="toggle">
+    <input type="checkbox" id="toggle"> Show page breaks
+  </label>
+
+  <label>Paper size
+    <select id="paper">
+      <option value="letter">Letter (8.5 × 11 in)</option>
+      <option value="a4">A4 (8.27 × 11.69 in)</option>
+      <option value="legal">Legal (8.5 × 14 in)</option>
+    </select>
+  </label>
+
+  <div class="row">
+    <div><label>Top margin (in)<input id="mt" type="number" step="0.1" value="1"></label></div>
+    <div><label>Bottom margin (in)<input id="mb" type="number" step="0.1" value="1"></label></div>
+  </div>
+  <div class="row">
+    <div><label>Scale (%)<input id="scale" type="number" step="5" value="100"></label></div>
+    <div><label>Number of guides<input id="count" type="number" min="1" max="30" value="5"></label></div>
+  </div>
+  <label>Start offset (pt) – calibration
+    <input id="offset" type="number" step="1" value="0">
+  </label>
+
+  <div class="warn">Guides are real page content. Turn them off before exporting or printing.</div>
+  <div id="status"></div>
+
+<script>
+const PAPER_HEIGHT_IN = { letter: 11, a4: 11.69, legal: 14 };
+const GUIDE_TEXT = "page break guide";
+const GUIDE_LINE = "- ".repeat(70);
+const STORE_PREFIX = "pbguides:";
+
+const $ = (id) => document.getElementById(id);
+const setStatus = (m) => ($("status").textContent = m);
+
+Office.onReady(() => {
+  $("toggle").addEventListener("change", onToggle);
+  // Re-draw when settings change while the toggle is on
+  ["paper", "mt", "mb", "scale", "count", "offset"].forEach((id) =>
+    $(id).addEventListener("change", () => { if ($("toggle").checked) onToggle(); })
+  );
+});
+
+function computePositions() {
+  const pageH = PAPER_HEIGHT_IN[$("paper").value];
+  const mt = parseFloat($("mt").value) || 0;
+  const mb = parseFloat($("mb").value) || 0;
+  const scale = (parseFloat($("scale").value) || 100) / 100;
+  const count = parseInt($("count").value, 10) || 1;
+  const offset = parseFloat($("offset").value) || 0;
+
+  // Printable height in points, converted to canvas units by scale
+  const usablePt = ((pageH - mt - mb) * 72) / scale;
+  const positions = [];
+  for (let i = 1; i <= count; i++) positions.push(offset + usablePt * i);
+  return positions;
+}
+
+async function onToggle() {
+  try {
+    await OneNote.run(async (context) => {
+      const page = context.application.getActivePage();
+      page.load("id");
+      await context.sync();
+
+      await removeGuides(context, page);
+
+      if ($("toggle").checked) {
+        const ids = [];
+        const outlines = computePositions().map((top) => {
+          const html =
+            `<p style="font-size:6pt;color:#8a8a8a;margin:0;">${GUIDE_LINE}${GUIDE_TEXT}</p>`;
+          const o = page.addOutline(20, top, html);
+          o.pageContent.load("id");
+          return o;
+        });
+        await context.sync();
+        outlines.forEach((o) => ids.push(o.pageContent.id));
+        localStorage.setItem(STORE_PREFIX + page.id, JSON.stringify(ids));
+        setStatus(`Showing ${ids.length} page break guides.`);
+      } else {
+        setStatus("Page break guides removed.");
+      }
+    });
+  } catch (e) {
+    console.error(e);
+    setStatus("Error: " + (e.message || e));
+  }
+}
+
+async function removeGuides(context, page) {
+  const key = STORE_PREFIX + page.id;
+  let stored = [];
+  try { stored = JSON.parse(localStorage.getItem(key) || "[]"); } catch (_) {}
+  if (!stored.length) return;
+
+  const contents = page.contents;
+  contents.load("items/id");
+  await context.sync();
+
+  contents.items.forEach((c) => { if (stored.includes(c.id)) c.delete(); });
+  await context.sync();
+  localStorage.removeItem(key);
+}
+</script>
+</body>
+</html>
